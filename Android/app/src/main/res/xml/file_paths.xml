@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- getExternalFilesDir(null)/captures -> sistem oynatıcı/galeri ile paylaşım için -->
+    <external-files-path
+        name="captures"
+        path="captures/" />
+</paths>

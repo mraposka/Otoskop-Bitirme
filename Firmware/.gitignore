@@ -1,0 +1,7 @@
+# Arduino "Export Compiled Binary" ciktilari (her derlemede yeniden uretilir)
+**/build/
+*.map
+*.elf
+
+# OTA: firmware.bin repoda KALMALI (raw URL'den indirilir) -> yok sayma
+!ESP32_Pure_Firmware/ota/firmware.bin

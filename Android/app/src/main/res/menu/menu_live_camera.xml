@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/action_tracking"
+        android:icon="@android:drawable/ic_menu_mylocation"
+        android:title="@string/status_tracking"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_control"
+        android:icon="@android:drawable/ic_menu_manage"
+        android:title="@string/title_control"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_captures"
+        android:icon="@android:drawable/ic_menu_gallery"
+        android:title="@string/title_captures"
+        app:showAsAction="ifRoom" />
+
+    <item
+        android:id="@+id/action_console"
+        android:icon="@android:drawable/ic_menu_info_details"
+        android:title="@string/action_console"
+        app:showAsAction="ifRoom" />
+</menu>

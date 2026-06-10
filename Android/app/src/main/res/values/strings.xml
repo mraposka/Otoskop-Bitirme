@@ -1,0 +1,84 @@
+<resources>
+    <string name="app_name">Otoskop</string>
+
+    <!-- Bağlantı ekranı -->
+    <string name="title_connection">Bağlantı</string>
+    <string name="hint_esp32_ip">ESP32 adresi (otoskop.local veya IP)</string>
+    <string name="action_test_connection">Bağlantı testi</string>
+    <string name="action_auto_discover">ESP\'yi otomatik bul</string>
+    <string name="status_discovering">Aranıyor…</string>
+    <string name="hint_gemini_key">Gemini API anahtarı (doğrulama için)</string>
+    <string name="action_save_key">Anahtarı kaydet</string>
+    <string name="key_saved">Gemini anahtarı kaydedildi</string>
+    <string name="action_test_stream">Kamera stream test</string>
+    <string name="action_hide_stream">Stream gizle</string>
+    <string name="action_continue">Devam et</string>
+    <string name="status_testing">Test ediliyor…</string>
+
+    <!-- Canlı kamera ekranı -->
+    <string name="title_live_camera">Canlı Kamera</string>
+    <string name="action_define_area">Alan belirle</string>
+    <string name="action_verify">Snapshot &amp; doğrula</string>
+    <string name="status_verifying">Doğrulanıyor…</string>
+    <string name="status_target_locked">TARGET LOCKED</string>
+    <string name="status_tracking">Tracking</string>
+    <string name="action_console">Konsol</string>
+    <string name="console_empty">Mega/ESP verisi bekleniyor…</string>
+    <string name="action_photo">Foto çek</string>
+    <string name="action_record_start">Video kaydı</string>
+    <string name="action_record_stop">Kaydı durdur</string>
+
+    <!-- Kayıtlar ekranı -->
+    <string name="title_captures">Kayıtlar</string>
+    <string name="captures_empty">Henüz kayıt yok.\n\nCanlı kamera ekranında \"Foto çek\" veya \"Video kaydı\" ile gözlem yakala. Video kaydı, AI kadrajda hedefi gördüğünde başlar.</string>
+    <string name="captures_delete_confirm">Bu kaydı silmek istiyor musun?</string>
+    <string name="action_delete">Sil</string>
+    <string name="action_share">Paylaş</string>
+
+    <!-- Sky area ekranı -->
+    <string name="title_sky_area">Gözlem Alanı Seç</string>
+    <string name="action_scan_area">Bu alanı tara</string>
+    <string name="status_scanning">Taranıyor…</string>
+    <string name="label_half_width">Pencere yarıçapı</string>
+
+    <!-- Object list ekranı -->
+    <string name="title_object_list">Gözlemlenebilir Objeler</string>
+    <string name="action_select">Seç</string>
+    <string name="status_not_visible">Görünmüyor</string>
+    <string name="empty_objects">Görüş açısında gözlemlenebilir cisim yok.\n\nServis yalnızca gezegenleri, Ay\'ı ve Güneş\'i döndürür. Pencere yarıçapını büyütüp tekrar tara ya da telefonu gökyüzünde farklı bir yöne çevir. (Gündüz Güneş, gece gezegen/Ay deneyin.)</string>
+
+    <!-- Kontrol ekranı -->
+    <string name="title_control">Teleskop Kontrol</string>
+    <string name="action_calibrate">Kalibre et</string>
+    <string name="label_current_azalt">Mevcut Az / Alt</string>
+    <string name="label_target_azalt">Hedef Az / Alt</string>
+    <string name="label_servo_angles">Servo açıları (az / alt)</string>
+    <string name="step_small">Küçük</string>
+    <string name="step_medium">Orta</string>
+    <string name="step_large">Büyük</string>
+    <string name="dir_left">Sol</string>
+    <string name="dir_right">Sağ</string>
+    <string name="dir_up">Yukarı</string>
+    <string name="dir_down">Aşağı</string>
+
+    <!-- Durum chip'leri -->
+    <string name="chip_gps">GPS</string>
+    <string name="chip_imu">IMU (MPU9250)</string>
+    <string name="chip_tracking">Tracking</string>
+
+    <!-- Hatalar -->
+    <string name="err_esp32_unreachable">ESP32 bağlı değil</string>
+    <string name="err_camera_stream">Kamera stream alınamıyor</string>
+    <string name="err_gps_unavailable">GPS konumu yok</string>
+    <string name="err_compass_uncalibrated">Telefon pusulası kalibre değil</string>
+    <string name="err_backend_unreachable">Backend API cevap vermiyor</string>
+    <string name="err_target_not_verified">Hedef doğrulanamadı</string>
+    <string name="err_permission_denied">Gerekli izinler verilmedi</string>
+    <string name="err_unknown">Bilinmeyen hata</string>
+    <string name="action_retry">Yeniden dene</string>
+
+    <!-- Demo / UI test -->
+    <string name="demo_mode_switch">Demo modu (ESP32 yok)</string>
+    <string name="demo_mode_hint">Açıkken sahte telemetri ve liste kullanılır; canlı MJPEG kapalıdır.</string>
+    <string name="demo_camera_placeholder">Demo modu — gerçek kamera akışı yok.\nESP32 bağlayınca burada MJPEG görünür.</string>
+</resources>

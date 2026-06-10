@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/connectionFragment">
+
+    <fragment
+        android:id="@+id/connectionFragment"
+        android:name="com.kou.otoskop.ui.connection.ConnectionFragment"
+        android:label="@string/title_connection">
+        <action
+            android:id="@+id/action_connection_to_live"
+            app:destination="@id/liveCameraFragment"
+            app:popUpTo="@id/connectionFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/liveCameraFragment"
+        android:name="com.kou.otoskop.ui.livecamera.LiveCameraFragment"
+        android:label="@string/title_live_camera">
+        <action
+            android:id="@+id/action_live_to_skyArea"
+            app:destination="@id/skyAreaFragment" />
+        <action
+            android:id="@+id/action_live_to_control"
+            app:destination="@id/telescopeControlFragment" />
+        <action
+            android:id="@+id/action_live_to_captures"
+            app:destination="@id/capturesFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/capturesFragment"
+        android:name="com.kou.otoskop.ui.captures.CapturesFragment"
+        android:label="@string/title_captures" />
+
+    <fragment
+        android:id="@+id/skyAreaFragment"
+        android:name="com.kou.otoskop.ui.skyarea.SkyAreaFragment"
+        android:label="@string/title_sky_area">
+        <action
+            android:id="@+id/action_skyArea_to_objectList"
+            app:destination="@id/objectListFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/objectListFragment"
+        android:name="com.kou.otoskop.ui.objectlist.ObjectListFragment"
+        android:label="@string/title_object_list">
+        <action
+            android:id="@+id/action_objectList_to_control"
+            app:destination="@id/telescopeControlFragment"
+            app:popUpTo="@id/liveCameraFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/telescopeControlFragment"
+        android:name="com.kou.otoskop.ui.control.TelescopeControlFragment"
+        android:label="@string/title_control" />
+</navigation>

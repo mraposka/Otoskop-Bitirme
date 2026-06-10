@@ -1,0 +1,17 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <style name="Theme.Otoskop" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/otoskop_primary</item>
+        <item name="colorPrimaryVariant">@color/otoskop_primary_dark</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/otoskop_accent</item>
+        <item name="colorSecondaryVariant">@color/otoskop_accent</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <item name="colorError">@color/otoskop_error</item>
+        <item name="android:colorBackground">@color/otoskop_bg</item>
+        <item name="colorSurface">@color/otoskop_surface</item>
+        <item name="android:windowBackground">@color/otoskop_bg</item>
+        <item name="android:statusBarColor">@color/otoskop_primary_dark</item>
+        <item name="android:textColorPrimary">@color/otoskop_text</item>
+        <item name="android:textColorSecondary">@color/otoskop_text_secondary</item>
+    </style>
+</resources>

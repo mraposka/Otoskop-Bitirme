@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<merge xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    tools:parentTag="com.kou.otoskop.ui.widget.StatusChipView">
+
+    <View
+        android:id="@+id/chipDot"
+        android:layout_width="8dp"
+        android:layout_height="8dp"
+        android:background="@drawable/dot_indicator"
+        android:backgroundTint="@color/otoskop_success" />
+
+    <TextView
+        android:id="@+id/chipLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:textColor="@color/otoskop_text" />
+
+    <TextView
+        android:id="@+id/chipDetail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:textColor="@color/otoskop_text_secondary"
+        android:visibility="gone" />
+</merge>
