@@ -79,6 +79,22 @@ object NetworkFactory {
             .build()
             .create(AstroApi::class.java)
 
+    fun createAstronomy(config: AstronomyConfig): AstronomyApi {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(AppConfig.BACKEND_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .readTimeout(AppConfig.BACKEND_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .writeTimeout(AppConfig.BACKEND_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+            .addInterceptor(AstronomyAuthInterceptor(config))
+            .addInterceptor(logger)
+            .build()
+        return Retrofit.Builder()
+            .baseUrl(AppConfig.ASTRONOMY_BASE_URL)
+            .client(client)
+            .addConverterFactory(converter)
+            .build()
+            .create(AstronomyApi::class.java)
+    }
+
     fun createGemini(baseUrl: String = AppConfig.GEMINI_BASE_URL): GeminiApi =
         Retrofit.Builder()
             .baseUrl(baseUrl)

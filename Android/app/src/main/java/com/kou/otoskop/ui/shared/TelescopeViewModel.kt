@@ -52,7 +52,7 @@ class TelescopeViewModel(
 
     private companion object {
         /** Bu kadar ardışık /status hatası olmadan "bağlantı koptu" gösterme. */
-        const val STATUS_FAILURE_THRESHOLD = 3
+        const val STATUS_FAILURE_THRESHOLD = 6
     }
 
     private fun appendDebug(line: String) = DebugLog.add(line)
@@ -171,6 +171,49 @@ class TelescopeViewModel(
                     appendDebug("/calibrate HATA: ${r.error.message}")
                     _state.value = _state.value.copy(error = r.error)
                 }
+            }
+        }
+    }
+
+    /**
+     * Yön kalibrasyonu: telefon (gerçek) ile MPU farkının artımsal offset'i.
+     * Firmware mevcut offset'e ekler + EEPROM'a kaydeder; telemetri azReal/altReal
+     * bundan sonra gerçek dünya açılarını gösterir.
+     */
+    fun sendDirectionOffset(azimuthOffset: Double, altitudeOffset: Double) {
+        appendDebug("/caloffset daz=%.1f dalt=%.1f gönderiliyor".format(azimuthOffset, altitudeOffset))
+        viewModelScope.launch {
+            when (val r = esp32().sendCalOffset(azimuthOffset, altitudeOffset)) {
+                is Resource.Success -> appendDebug("/caloffset OK")
+                is Resource.Failure -> {
+                    appendDebug("/caloffset HATA: ${r.error.message}")
+                    _state.value = _state.value.copy(error = r.error)
+                }
+            }
+        }
+    }
+
+    /** Altitude yukarı limiti (ayar sayfası). Firmware'e gönderir + saklatır. */
+    fun setAltLimit(altMax: Double) {
+        appendDebug("/limits altMax=%.0f gönderiliyor".format(altMax))
+        viewModelScope.launch {
+            when (val r = esp32().setAltLimit(altMax)) {
+                is Resource.Success -> appendDebug("/limits OK")
+                is Resource.Failure -> {
+                    appendDebug("/limits HATA: ${r.error.message}")
+                    _state.value = _state.value.copy(error = r.error)
+                }
+            }
+        }
+    }
+
+    /** Seçilen gözlem alanının merkezine teleskobu döndürür (alan tarama akışı). */
+    fun aimAtArea(azimuth: Double, altitude: Double) {
+        appendDebug("Alan merkezine dön: az=%.1f alt=%.1f".format(azimuth, altitude))
+        viewModelScope.launch {
+            when (val r = esp32().sendTarget("Alan merkezi", azimuth, altitude)) {
+                is Resource.Success -> appendDebug("alan /target OK")
+                is Resource.Failure -> appendDebug("alan /target HATA: ${r.error.message}")
             }
         }
     }

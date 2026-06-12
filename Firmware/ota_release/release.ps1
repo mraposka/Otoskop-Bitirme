@@ -20,10 +20,10 @@
 
 param(
   [string]$Bin = "",
-  [string]$Ino = "C:/Users/Admin/Desktop/Otoskop/Otoskop-Hardware/ESP32_Pure_Firmware/esp32cam_otoskop/esp32cam_otoskop.ino",
-  [string]$VersionFile = "C:/Users/Admin/Desktop/Otoskop/Otoskop-Hardware/ESP32_Pure_Firmware/esp32cam_otoskop/ota/version.json",
-  [string]$BinDest = "C:/Users/Admin/Desktop/Otoskop/Otoskop-Hardware/ESP32_Pure_Firmware/esp32cam_otoskop/ota/firmware.bin",
-  [string]$BuildDir = "C:/Users/Admin/Desktop/Otoskop/Otoskop-Hardware/ESP32_Pure_Firmware/esp32cam_otoskop/build"
+  [string]$Ino = "C:/Users/Admin/Desktop/Otoskop-Bitirme/Firmware/ESP32_Pure_Firmware/esp32cam_otoskop/esp32cam_otoskop.ino",
+  [string]$VersionFile = "C:/Users/Admin/Desktop/Otoskop-Bitirme/Firmware/ESP32_Pure_Firmware/ota/version.json",
+  [string]$BinDest = "C:/Users/Admin/Desktop/Otoskop-Bitirme/Firmware/ESP32_Pure_Firmware/ota/firmware.bin",
+  [string]$BuildDir = "C:/Users/Admin/Desktop/Otoskop-Bitirme/Firmware/ESP32_Pure_Firmware/esp32cam_otoskop/build"
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,18 +81,4 @@ $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
 
 Write-Host ""
 Write-Host "==================== HAZIR ====================" -ForegroundColor Green
-Write-Host (".bin kaynak : {0}  ({1} dk once derlendi)" -f $Bin, $binAgeMin)
-Write-Host (".bin -> {0}" -f $BinDest)
-Write-Host ("version.json: {0} -> {1}  (FW_VERSION={1})" -f $oldVer, $fwVersion)
-Write-Host ("hedef url   : {0}" -f $json.url)
-if ($binAgeMin -gt 10) {
-  Write-Host "UYARI: .bin 10 dk'dan eski. Son degisikligi derledin mi (Export Compiled Binary)?" -ForegroundColor Yellow
-}
-Write-Host ""
-Write-Host "SIMDI: bu 2 dosyayi GitHub'a yukle (web): " -ForegroundColor Cyan
-Write-Host "  github.com/mraposka/Otoskop -> ESP32_Pure_Firmware/ota/ klasoru"
-Write-Host "  'Add file > Upload files' -> ota\firmware.bin ve ota\version.json'u surukle -> Commit"
-Write-Host "  (klasor yoksa upload ekraninda yol kutusuna 'ESP32_Pure_Firmware/ota/' yaz)"
-Write-Host ""
-Write-Host "Sonra ESP en gec 5 dk'da guncellenir. Hemen icin telefondan:"
-Write-Host "  http://<ESP-STA-IP>/ota/check   (orn. http://172.28.209.39/ota/check)"
+

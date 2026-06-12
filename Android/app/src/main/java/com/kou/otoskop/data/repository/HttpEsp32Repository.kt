@@ -5,9 +5,11 @@ import com.kou.otoskop.core.AppErrorKind
 import com.kou.otoskop.core.Resource
 import com.kou.otoskop.data.model.EspGps
 import com.kou.otoskop.data.model.TelescopeStatus
+import com.kou.otoskop.data.network.CalOffsetBody
 import com.kou.otoskop.data.network.CorrectionBody
 import com.kou.otoskop.data.network.Esp32Api
 import com.kou.otoskop.data.network.Esp32Endpoint
+import com.kou.otoskop.data.network.LimitsBody
 import com.kou.otoskop.data.network.MoveBody
 import com.kou.otoskop.data.network.TargetBody
 import com.kou.otoskop.data.network.TrackingBody
@@ -67,6 +69,12 @@ class HttpEsp32Repository(
         runEsp32Empty { api.postMove(MoveBody(direction.wire, step.wire)) }
 
     override suspend fun calibrate() = runEsp32Empty { api.postCalibrate() }
+
+    override suspend fun sendCalOffset(azimuthOffset: Double, altitudeOffset: Double) =
+        runEsp32Empty { api.postCalOffset(CalOffsetBody(azimuthOffset, altitudeOffset)) }
+
+    override suspend fun setAltLimit(altMax: Double) =
+        runEsp32Empty { api.postLimits(LimitsBody(altMax)) }
 
     override suspend fun setTracking(enabled: Boolean) =
         runEsp32Empty { api.postTracking(TrackingBody(enabled)) }

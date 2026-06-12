@@ -13,14 +13,20 @@
  *   - GPS (NEO-6M/M8N, TinyGPSPlus, Serial2): lat/lon/fix
  *
  * Motorlar:
- *   - 2x servo: azimut (pan) + altitude (tilt). Hedefe yumusak surulur.
+ *   - Azimut (pan): SUREKLI DONUS servosu (180'de durmaz, 360 doner). Konum
+ *     acisi yok; komut = hiz. MPU heading'e gore KAPALI DONGU surulur.
+ *   - Altitude (tilt): NORMAL KONUM servosu (0..180). Yukari limiti kullanici
+ *     belirler ({"cmd":"limits","altMax":..}).
+ *   Tum hareketler "300ms'de 1 derece" hizinda yumusak ilerler.
  *
  * Haberlesme (Serial1, 115200, satir-sonlu JSON):
  *   ESP -> Mega komut:
  *     {"cmd":"target","az":135.4,"alt":42.8}
  *     {"cmd":"move","dir":"right","step":"medium"}     dir: left|right|up|down
  *     {"cmd":"correction","daz":-0.8,"dalt":0.5}
- *     {"cmd":"calibrate"}
+ *     {"cmd":"calibrate"}                              gyro/mag kalibrasyonu
+ *     {"cmd":"calOffset","daz":12.0,"dalt":-3.0}       yon kalibrasyonu (telefonla)
+ *     {"cmd":"limits","altMax":60.0}                   altitude yukari limiti
  *     {"cmd":"track","on":true}
  *   Mega -> ESP telemetri (~10 Hz):
  *     {"az":134.8,"alt":42.1,"taz":135.4,"talt":42.8,"sAz":67.4,"sAlt":42.1,
@@ -45,6 +51,7 @@
 #include <Servo.h>
 #include <ArduinoJson.h>
 #include <TinyGPSPlus.h>
+#include <EEPROM.h>
 #include <math.h>
 
 // ----------------------------- Ayarlar -------------------------------------
@@ -60,15 +67,41 @@
 #define SERVO_AZ_PIN  9
 #define SERVO_ALT_PIN 10
 
-// Servo mekanik sinirlari (kendi donanimina gore ayarla).
-// Az servosu 180 derecelik pan kapsar; gercek azimut bu araliga map'lenir.
-const float AZ_RANGE_MIN_DEG  = 0.0;    // bu azimut -> servo 0
-const float AZ_RANGE_MAX_DEG  = 180.0;  // bu azimut -> servo 180
-const float ALT_RANGE_MIN_DEG = 0.0;
-const float ALT_RANGE_MAX_DEG = 90.0;   // alt servosu 0..90
+// --------------------------- Servo mimarisi --------------------------------
+// AZIMUT (yatay/pan): SUREKLI DONUS servosu (DS5160 sw vb. - 180'de durmaz,
+//   360 doner). Konum acisi YOK; komut = HIZ. Bu yuzden hedef azimuta gitmek
+//   icin MPU heading'e gore KAPALI DONGU surulur: hedefe gelene kadar yavas
+//   dondur, gelince durdur. writeMicroseconds ile sürülür:
+//     AZ_STOP_US      -> dur (notr). Servon biraz suruyorsa bunu trim et.
+//     +/- AZ_SLEW_US  -> notr'den sapma = donus hizi (kucuk = yavas).
+//   Donus yonu ters cikarsa AZ_DIR'i -1 yap.
+const int   AZ_STOP_US   = 1500;   // surekli servo notr (dur) puls genisligi
+const int   AZ_SLEW_US   = 90;     // notr'den sapma (yavas donus). Buyut=hizlan
+const int   AZ_DIR       = 1;      // donus yonu (+1 / -1). Ters donerse degistir
+const float AZ_TOLERANCE_DEG = 1.0;  // bu kadar yakinsa azimut servosunu durdur
 
-const float SERVO_SLEW_DEG_PER_LOOP = 1.5;  // yumusatma hizi
-const float LOCK_TOLERANCE_DEG      = 1.5;  // hedefe bu kadar yakinsa kilit
+// ALTITUDE (dikey/tilt): NORMAL KONUM servosu (0..180 yazilir). Asagi yonun
+//   onemi yok; yukari limiti KULLANICI belirler (uygulamadaki ayar sayfasi ->
+//   {"cmd":"limits","altMax":..}). Servo acisi = altitude * ALT_SERVO_SCALE.
+const float ALT_SERVO_SCALE  = 1.0;  // mekanik orana gore (1:1 ise 1.0)
+const float ALT_MIN_DEG      = 0.0;
+
+// Hareket adimlama: hedefe "300ms'de 1 derece" hizinda yumusak yaklasilir.
+const unsigned long STEP_INTERVAL_MS = 300;
+const float         STEP_DEG         = 1.0;
+
+const float LOCK_TOLERANCE_DEG = 2.0;  // hedefe bu kadar yakinsa kilit
+
+// --------------------------- Kalibrasyon / limit (kalici, EEPROM) ----------
+// Yon kalibrasyonu: telefon (gercek referans) ile MPU okumasi arasindaki fark.
+//   azReal = normalize(hamHeading + azOffset);  altReal = hamAlt + altOffset
+// Uygulama kalibrasyonda artimsal delta gonderir: {"cmd":"calOffset","daz":..,"dalt":..}
+float azOffset  = 0.0;
+float altOffset = 0.0;
+// Altitude yukari limiti (derece). Uygulamadaki ayar sayfasindan degistirilir.
+float altMaxLimit = 90.0;
+
+#define EEPROM_MAGIC 0x4F   // 'O' - EEPROM'da gecerli config var mi?
 
 // Manyetometre hard-iron offset (kalibrasyonla bul, buraya yaz).
 // uT cinsinden; varsayilan 0 -> kalibre etmeden de calisir ama sapma olur.
@@ -85,10 +118,14 @@ float yaw = 0.0;          // gyro entegre heading (manyetometre ile karisir)
 float gzBias = 0.0;
 unsigned long lastMicros = 0;
 
-float heading = 0.0;      // azimut (derece, 0..360) - fuzyon cikisi (yaw)
-float altitude = 0.0;     // yukseklik acisi (derece) - pitch'ten, ufuk altina inmez
+float heading = 0.0;      // HAM azimut (derece, 0..360) - fuzyon cikisi (yaw)
+float altitude = 0.0;     // HAM yukseklik acisi (derece) - pitch'ten
 float rollDeg = 0.0;      // x ekseni egimi (derece) - debug
 float pitchDeg = 0.0;     // y ekseni egimi (derece, ham) - debug
+
+// Kalibrasyon offset'i uygulanmis GERCEK acilar (kapali dongu + telemetri bunu kullanir)
+float azReal = 0.0;
+float altReal = 0.0;
 
 float targetAz = 0.0;
 float targetAlt = 0.0;
@@ -96,8 +133,13 @@ bool  haveTarget = false;
 bool  tracking = false;
 bool  targetLocked = false;
 
-float servoAzPos = 90.0;  // anlik servo komutlari (derece)
-float servoAltPos = 45.0;
+// Adimlanan ara hedef (300ms'de 1 derece ilerler). Servolar buna gore surulur.
+float azCmd = 0.0;
+float altCmd = 0.0;
+unsigned long lastStepMs = 0;
+
+float servoAzPos = 90.0;   // telemetri: azimut komut acisi (azCmd)
+float servoAltPos = 0.0;   // telemetri: altitude servo acisi
 
 bool imuOk = false;
 
@@ -232,41 +274,80 @@ void calibrateMag() {
 }
 
 // --------------------------- Servo surme -----------------------------------
-float azToServo(float az) {
-  float a = fmod(az, 360.0); if (a < 0) a += 360.0;
-  if (a < AZ_RANGE_MIN_DEG) a = AZ_RANGE_MIN_DEG;
-  if (a > AZ_RANGE_MAX_DEG) a = AZ_RANGE_MAX_DEG;
-  float t = (a - AZ_RANGE_MIN_DEG) / (AZ_RANGE_MAX_DEG - AZ_RANGE_MIN_DEG);
-  return t * 180.0;
+// Iki azimut arasi en kisa fark (-180..180).
+float shortestAngle(float from, float to) {
+  float d = fmod(to - from, 360.0);
+  if (d > 180.0)  d -= 360.0;
+  if (d < -180.0) d += 360.0;
+  return d;
 }
 
-float altToServo(float alt) {
-  float a = constrain(alt, ALT_RANGE_MIN_DEG, ALT_RANGE_MAX_DEG);
-  float t = (a - ALT_RANGE_MIN_DEG) / (ALT_RANGE_MAX_DEG - ALT_RANGE_MIN_DEG);
-  return t * 180.0;
-}
+float normAz(float a) { a = fmod(a, 360.0); if (a < 0) a += 360.0; return a; }
 
-void slewTo(float &cur, float dest) {
-  float d = dest - cur;
-  if (fabs(d) <= SERVO_SLEW_DEG_PER_LOOP) cur = dest;
-  else cur += (d > 0 ? SERVO_SLEW_DEG_PER_LOOP : -SERVO_SLEW_DEG_PER_LOOP);
-  cur = constrain(cur, 0.0, 180.0);
+// 300ms'de bir ara hedefi (azCmd/altCmd) 1 derece nihai hedefe yaklastir.
+// Boylece tum hareketler "300ms'de 1 derece" hizinda yumusak ilerler.
+void updateStepTargets() {
+  if (millis() - lastStepMs < STEP_INTERVAL_MS) return;
+  lastStepMs = millis();
+
+  if (!haveTarget) return;   // hedef yokken servolar yerinde kalir
+
+  // Azimut: en kisa yonden 1 derece
+  float dAz = shortestAngle(azCmd, targetAz);
+  if (fabs(dAz) <= STEP_DEG) azCmd = targetAz;
+  else azCmd = normAz(azCmd + (dAz > 0 ? STEP_DEG : -STEP_DEG));
+
+  // Altitude: 1 derece, kullanici limitine kadar
+  float tAlt = constrain(targetAlt, ALT_MIN_DEG, altMaxLimit);
+  float dAlt = tAlt - altCmd;
+  if (fabs(dAlt) <= STEP_DEG) altCmd = tAlt;
+  else altCmd += (dAlt > 0 ? STEP_DEG : -STEP_DEG);
+  altCmd = constrain(altCmd, ALT_MIN_DEG, altMaxLimit);
 }
 
 void driveServos() {
-  if (haveTarget) {
-    float destAz = azToServo(targetAz);
-    float destAlt = altToServo(targetAlt);
-    slewTo(servoAzPos, destAz);
-    slewTo(servoAltPos, destAlt);
-
-    float dAz = fabs(targetAz - heading);
-    if (dAz > 180) dAz = 360 - dAz;
-    float dAlt = fabs(targetAlt - altitude);
-    targetLocked = (dAz < LOCK_TOLERANCE_DEG && dAlt < LOCK_TOLERANCE_DEG);
+  // --- AZIMUT: surekli donus servosu, MPU heading'e gore kapali dongu ---
+  float errAz = shortestAngle(azReal, azCmd);   // azReal -> azCmd farki
+  if (haveTarget && fabs(errAz) > AZ_TOLERANCE_DEG) {
+    int dir = (errAz > 0) ? 1 : -1;
+    servoAz.writeMicroseconds(AZ_STOP_US + AZ_DIR * dir * AZ_SLEW_US);
+  } else {
+    servoAz.writeMicroseconds(AZ_STOP_US);      // dur (notr)
   }
-  servoAz.write((int)round(servoAzPos));
-  servoAlt.write((int)round(servoAltPos));
+  servoAzPos = azCmd;                            // telemetri (komut azimutu)
+
+  // --- ALTITUDE: normal konum servosu (kullanici limitiyle) ---
+  float servoAngle = altCmd * ALT_SERVO_SCALE;
+  servoAngle = constrain(servoAngle, 0.0, 180.0);
+  servoAlt.write((int)round(servoAngle));
+  servoAltPos = servoAngle;
+
+  // --- Hedef kilidi ---
+  // Azimut kapali dongu: GERCEK heading hedefe yakin mi?
+  // Altitude acik dongu (konum servosu): komut nihai hedefe ulasti mi?
+  if (haveTarget) {
+    float lockAz = fabs(shortestAngle(azReal, targetAz));
+    float lockAlt = fabs(constrain(targetAlt, ALT_MIN_DEG, altMaxLimit) - altCmd);
+    targetLocked = (lockAz < LOCK_TOLERANCE_DEG && lockAlt < LOCK_TOLERANCE_DEG);
+  }
+}
+
+// --------------------------- EEPROM (kalici config) ------------------------
+void saveConfig() {
+  EEPROM.update(0, EEPROM_MAGIC);
+  EEPROM.put(1, azOffset);
+  EEPROM.put(1 + sizeof(float), altOffset);
+  EEPROM.put(1 + 2 * sizeof(float), altMaxLimit);
+}
+
+void loadConfig() {
+  if (EEPROM.read(0) != EEPROM_MAGIC) return;   // hic kaydedilmemis -> varsayilan
+  EEPROM.get(1, azOffset);
+  EEPROM.get(1 + sizeof(float), altOffset);
+  EEPROM.get(1 + 2 * sizeof(float), altMaxLimit);
+  if (isnan(azOffset)) azOffset = 0.0;
+  if (isnan(altOffset)) altOffset = 0.0;
+  if (isnan(altMaxLimit) || altMaxLimit <= 0) altMaxLimit = 90.0;
 }
 
 // --------------------------- Komut isleme ----------------------------------
@@ -289,14 +370,15 @@ void handleCommand(const char* line) {
   const char* cmd = doc["cmd"] | "";
 
   if (strcmp(cmd, "target") == 0) {
-    targetAz = doc["az"] | targetAz;
-    targetAlt = doc["alt"] | targetAlt;
+    targetAz = normAz(doc["az"] | targetAz);
+    targetAlt = constrain((float)(doc["alt"] | targetAlt), ALT_MIN_DEG, altMaxLimit);
+    azCmd = azReal;   // surekli azimut: ara hedef GERCEK heading'den baslasin
     haveTarget = true;
     tracking = true;
     targetLocked = false;
   } else if (strcmp(cmd, "correction") == 0) {
-    targetAz += (float)(doc["daz"] | 0.0);
-    targetAlt += (float)(doc["dalt"] | 0.0);
+    targetAz = normAz(targetAz + (float)(doc["daz"] | 0.0));
+    targetAlt = constrain(targetAlt + (float)(doc["dalt"] | 0.0), ALT_MIN_DEG, altMaxLimit);
     haveTarget = true;
   } else if (strcmp(cmd, "move") == 0) {
     const char* dir = doc["dir"] | "";
@@ -305,19 +387,29 @@ void handleCommand(const char* line) {
     if (strcmp(step, "small") == 0) s = 0.5;
     else if (strcmp(step, "large") == 0) s = 5.0;
     else s = 2.0;
-    if (!haveTarget) { targetAz = heading; targetAlt = altitude; haveTarget = true; }
+    if (!haveTarget) { targetAz = azReal; targetAlt = altReal; azCmd = azReal; haveTarget = true; }
     if (strcmp(dir, "left") == 0)  targetAz -= s;
     if (strcmp(dir, "right") == 0) targetAz += s;
     if (strcmp(dir, "up") == 0)    targetAlt += s;
     if (strcmp(dir, "down") == 0)  targetAlt -= s;
-    targetAz = fmod(targetAz, 360.0); if (targetAz < 0) targetAz += 360.0;
-    targetAlt = constrain(targetAlt, ALT_RANGE_MIN_DEG, ALT_RANGE_MAX_DEG);
+    targetAz = normAz(targetAz);
+    targetAlt = constrain(targetAlt, ALT_MIN_DEG, altMaxLimit);
   } else if (strcmp(cmd, "track") == 0) {
     tracking = doc["on"] | false;
   } else if (strcmp(cmd, "calibrate") == 0) {
     calibrateGyro();
     calibrateMag();
     yaw = heading;
+  } else if (strcmp(cmd, "calOffset") == 0) {
+    // Yon kalibrasyonu: telefon (gercek) ile MPU farkinin ARTIMSAL eklenmesi.
+    azOffset = normAz(azOffset + (float)(doc["daz"] | 0.0));
+    altOffset += (float)(doc["dalt"] | 0.0);
+    saveConfig();
+  } else if (strcmp(cmd, "limits") == 0) {
+    // Altitude yukari limiti (kullanici belirler). Hedefi de hemen kis.
+    altMaxLimit = constrain((float)(doc["altMax"] | altMaxLimit), 1.0, 180.0);
+    targetAlt = constrain(targetAlt, ALT_MIN_DEG, altMaxLimit);
+    saveConfig();
   }
 }
 
@@ -336,17 +428,22 @@ void pollSerialCommands() {
 
 // --------------------------- Telemetri -------------------------------------
 void sendTelemetry() {
-  StaticJsonDocument<384> doc;
-  doc["az"] = round(heading * 10) / 10.0;
-  doc["alt"] = round(altitude * 10) / 10.0;
+  StaticJsonDocument<512> doc;
+  // az/alt = kalibrasyon offset'i uygulanmis GERCEK acilar (uygulama bunu gosterir)
+  doc["az"] = round(azReal * 10) / 10.0;
+  doc["alt"] = round(altReal * 10) / 10.0;
   doc["taz"] = round(targetAz * 10) / 10.0;
   doc["talt"] = round(targetAlt * 10) / 10.0;
   doc["sAz"] = round(servoAzPos * 10) / 10.0;
   doc["sAlt"] = round(servoAltPos * 10) / 10.0;
-  // Ham yonelim acilari (x/y/z): roll, pitch, yaw. yaw = fuzyon heading (az).
+  // Ham yonelim acilari (x/y/z): roll, pitch, yaw. yaw = HAM fuzyon heading.
   doc["roll"] = round(rollDeg * 10) / 10.0;
   doc["pitch"] = round(pitchDeg * 10) / 10.0;
   doc["yaw"] = round(heading * 10) / 10.0;
+  // Kalibrasyon/limit durumu (uygulama gosterimi icin)
+  doc["azOff"] = round(azOffset * 10) / 10.0;
+  doc["altOff"] = round(altOffset * 10) / 10.0;
+  doc["altMax"] = round(altMaxLimit * 10) / 10.0;
   doc["gps"] = gps.location.isValid();
   if (gps.location.isValid()) {
     doc["lat"] = gps.location.lat();
@@ -394,8 +491,7 @@ void updateOrientation() {
   float roll  = atan2(ay, az);
   pitchDeg = pitch * 180.0 / PI;    // ham pitch (debug)
   rollDeg  = roll * 180.0 / PI;     // ham roll  (debug)
-  altitude = pitchDeg;
-  if (altitude < 0) altitude = 0;   // teleskop ufuk altina inmez (demo)
+  altitude = pitchDeg;              // ham yukseklik (asagi yon serbest)
 
   // Tilt-kompanze manyetometre heading
   float mx, my, mz;
@@ -417,6 +513,10 @@ void updateOrientation() {
   while (diff < -180) diff += 360;
   yaw += diff * 0.02;   // %2 manyetometre duzeltmesi/loop
   heading = fmod(yaw, 360.0); if (heading < 0) heading += 360.0;
+
+  // Kalibrasyon offset'ini uygula -> GERCEK (dunya) acilari.
+  azReal = normAz(heading + azOffset);
+  altReal = altitude + altOffset;
 }
 
 // --------------------------- Setup / Loop ----------------------------------
@@ -430,15 +530,19 @@ void setup() {
   // cozumu budur; 10 Hz telemetri icin hiz fazlasiyla yeterli.
   Wire.setClock(100000);
 
-  servoAz.attach(SERVO_AZ_PIN);
+  loadConfig();   // kalici azOffset/altOffset/altMaxLimit
+
+  // Surekli servoda 544..2400us tam araligi kullanabilmek icin min/max ver.
+  servoAz.attach(SERVO_AZ_PIN, 500, 2500);
   servoAlt.attach(SERVO_ALT_PIN);
-  servoAz.write((int)servoAzPos);
-  servoAlt.write((int)servoAltPos);
+  servoAz.writeMicroseconds(AZ_STOP_US);   // azimut: dur (notr)
+  servoAlt.write(0);                       // altitude: en alt
 
   imuOk = mpuInit();
   delay(50);
   calibrateGyro();
   lastMicros = micros();
+  lastStepMs = millis();
   Serial.println(imuOk ? F("MPU9250 hazir") : F("MPU9250 bulunamadi"));
 }
 
@@ -467,6 +571,7 @@ void loop() {
 
   updateOrientation();
   pollSerialCommands();
+  updateStepTargets();   // 300ms'de 1 derece ara hedef ilerlemesi
   driveServos();
 
   if (millis() - lastTelemetry >= TELEMETRY_INTERVAL_MS) {

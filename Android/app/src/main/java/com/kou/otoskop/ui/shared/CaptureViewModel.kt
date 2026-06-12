@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
 
 /** Çekim anındaki bağlam (telemetri + konum) — foto/video meta verisi için. */
 data class CaptureContext(
@@ -54,61 +55,75 @@ class CaptureViewModel(application: Application) : ViewModel() {
     private var pendingVideoFileName: String? = null
     private var pendingVideoMeta: CaptureMeta? = null
 
+    /** Canlı yayın karesinin son kopyası — ESP /camera meşgulken foto yedek yolu. */
+    @Volatile private var lastStreamFrame: Bitmap? = null
+
     /** MjpegView'dan gelen her kare; kayıt aktifse kodlayıcıya iletilir. */
     fun onStreamFrame(bitmap: Bitmap) {
+        val copy = bitmap.copy(bitmap.config ?: Bitmap.Config.ARGB_8888, false)
+        lastStreamFrame?.recycle()
+        lastStreamFrame = copy
         recorder?.encodeFrame(bitmap)
     }
 
-    /** Fotoğraf çek: ESP'den tam kare al, AI ile kadrajı değerlendir, kaydet. */
+    private suspend fun streamFrameJpeg(): ByteArray? = withContext(Dispatchers.Default) {
+        val bmp = lastStreamFrame ?: return@withContext null
+        val out = ByteArrayOutputStream()
+        if (!bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)) return@withContext null
+        out.toByteArray()
+    }
+
+    /** Fotoğraf çek: ESP'den tam kare al, olmazsa stream karesini kullan. */
     fun capturePhoto(ctx: CaptureContext) {
         if (_state.value.busy || _state.value.recording) return
         _state.value = _state.value.copy(busy = true, message = null)
         viewModelScope.launch {
             DebugLog.add("FOTO: ESP'den kare isteniyor")
-            when (val snap = app.esp32Repo.snapshot()) {
+            val bytes = when (val snap = app.esp32Repo.snapshot()) {
+                is Resource.Success -> snap.value
                 is Resource.Failure -> {
-                    DebugLog.add("FOTO HATA: ${snap.error.message}")
-                    _state.value = _state.value.copy(busy = false, message = "Foto alınamadı")
-                }
-                is Resource.Success -> {
-                    val bytes = snap.value
-                    val v = verifyFrame(ctx, bytes)
-                    val meta = ctx.toMeta(v)
-                    app.captureRepo.addPhoto(bytes, meta)
-                    val tag = if (v == null) "AI yok" else if (v.present) "AI ✓" else "AI ✗"
-                    DebugLog.add("FOTO kaydedildi (${bytes.size} byte, $tag)")
-                    _state.value = _state.value.copy(busy = false, message = "Fotoğraf kaydedildi ($tag)")
+                    DebugLog.add("FOTO ESP hata: ${snap.error.message}, stream yedeği deneniyor")
+                    streamFrameJpeg()
                 }
             }
+            if (bytes == null) {
+                DebugLog.add("FOTO HATA: ESP ve stream karesi yok")
+                _state.value = _state.value.copy(busy = false, message = "Foto alınamadı")
+                return@launch
+            }
+            val v = verifyFrame(ctx, bytes)
+            val meta = ctx.toMeta(v)
+            app.captureRepo.addPhoto(bytes, meta)
+            val tag = if (v == null) "AI yok" else if (v.present) "AI ✓" else "AI ✗"
+            DebugLog.add("FOTO kaydedildi (${bytes.size} byte, $tag)")
+            _state.value = _state.value.copy(busy = false, message = "Fotoğraf kaydedildi ($tag)")
         }
     }
 
-    /** Video kaydı başlat: önce AI ile kadrajda hedef var mı kontrol et. */
+    /** Video kaydı başlat. Kayıt hemen başlar; AI meta arka planda güncellenir. */
     fun startRecording(ctx: CaptureContext, force: Boolean = false) {
         if (_state.value.recording || _state.value.busy) return
-        _state.value = _state.value.copy(busy = true, message = null)
+        val (name, file) = app.captureRepo.newVideoFile()
+        pendingVideoFileName = name
+        pendingVideoMeta = ctx.toMeta(null)
+        recorder = Mp4Recorder(file)
+        _state.value = _state.value.copy(recording = true, message = "Kayıt sürüyor…")
+        DebugLog.add("VIDEO kaydı başladı")
         viewModelScope.launch {
-            DebugLog.add("VIDEO: kayıt öncesi AI kadraj kontrolü")
-            val v = when (val snap = app.esp32Repo.snapshot()) {
-                is Resource.Success -> verifyFrame(ctx, snap.value)
-                is Resource.Failure -> null
+            val hasTarget = !ctx.targetName.isNullOrBlank()
+            val v = if (hasTarget && !force) {
+                DebugLog.add("VIDEO: hedef var, AI meta kontrolü")
+                when (val snap = app.esp32Repo.snapshot()) {
+                    is Resource.Success -> verifyFrame(ctx, snap.value)
+                    is Resource.Failure -> {
+                        DebugLog.add("VIDEO: snapshot yok, meta AI'sız")
+                        null
+                    }
+                }
+            } else {
+                null
             }
-            val present = v?.present == true
-            if (!present && !force) {
-                val why = v?.message ?: "AI doğrulayamadı"
-                DebugLog.add("VIDEO iptal: kadrajda hedef yok ($why)")
-                _state.value = _state.value.copy(
-                    busy = false,
-                    message = "Kadrajda hedef yok — kayıt başlamadı ($why)",
-                )
-                return@launch
-            }
-            val (name, file) = app.captureRepo.newVideoFile()
-            pendingVideoFileName = name
             pendingVideoMeta = ctx.toMeta(v)
-            recorder = Mp4Recorder(file)
-            DebugLog.add("VIDEO kaydı başladı")
-            _state.value = _state.value.copy(busy = false, recording = true, message = "Kayıt sürüyor…")
         }
     }
 
@@ -174,6 +189,8 @@ class CaptureViewModel(application: Application) : ViewModel() {
     override fun onCleared() {
         runCatching { recorder?.stop() }
         recorder = null
+        lastStreamFrame?.recycle()
+        lastStreamFrame = null
         super.onCleared()
     }
 

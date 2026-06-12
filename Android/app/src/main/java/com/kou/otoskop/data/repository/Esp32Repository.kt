@@ -47,6 +47,15 @@ interface Esp32Repository {
 
     suspend fun calibrate(): Resource<Unit>
 
+    /**
+     * Yön kalibrasyonu: telefon (gerçek referans) ile MPU okuması arasındaki
+     * artımsal fark. Firmware mevcut offset'e ekler ve EEPROM'a kaydeder.
+     */
+    suspend fun sendCalOffset(azimuthOffset: Double, altitudeOffset: Double): Resource<Unit>
+
+    /** Altitude yukarı limiti (derece) — kullanıcı ayar sayfasından belirler. */
+    suspend fun setAltLimit(altMax: Double): Resource<Unit>
+
     suspend fun setTracking(enabled: Boolean): Resource<Unit>
 
     /** Demo modunda gerçek MJPEG yok; UI placeholder gösterir. */

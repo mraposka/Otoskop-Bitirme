@@ -21,6 +21,7 @@ import com.kou.otoskop.data.model.SkyArea
 import com.kou.otoskop.databinding.FragmentSkyAreaBinding
 import com.kou.otoskop.ui.shared.ObjectsViewModel
 import com.kou.otoskop.ui.shared.SensorViewModel
+import com.kou.otoskop.ui.shared.TelescopeViewModel
 import kotlinx.coroutines.launch
 
 class SkyAreaFragment : Fragment(R.layout.fragment_sky_area) {
@@ -42,6 +43,9 @@ class SkyAreaFragment : Fragment(R.layout.fragment_sky_area) {
     }
     private val objects: ObjectsViewModel by activityViewModels {
         ObjectsViewModel.Factory(requireActivity().application)
+    }
+    private val telescope: TelescopeViewModel by activityViewModels {
+        TelescopeViewModel.Factory(requireActivity().application)
     }
 
     override fun onCreateView(
@@ -67,6 +71,9 @@ class SkyAreaFragment : Fragment(R.layout.fragment_sky_area) {
             objects.setArea(area)
             pendingNavigateOnResult = true
             objects.scanArea(s)
+            // Görev 5: seçilen alanın merkezine teleskobu döndür (gerçek dünya
+            // azimut/altitude; kalibrasyon offset'i firmware'de uygulanır).
+            telescope.aimAtArea(area.centerAzimuth, area.centerAltitude)
         }
 
         viewLifecycleOwner.lifecycleScope.launch {

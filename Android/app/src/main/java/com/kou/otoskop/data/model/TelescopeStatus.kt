@@ -27,6 +27,12 @@ data class TelescopeStatus(
     @Json(name = "megaBytes") val megaBytes: Long = 0,
     /** Son ham byte'ın yaşı (ms). -1 = hiç byte gelmedi. */
     @Json(name = "megaByteAgeMs") val megaByteAgeMs: Long = -1,
+    /** Aktif yön kalibrasyon offset'i (azimut, derece). */
+    @Json(name = "azOff") val azOffset: Double = 0.0,
+    /** Aktif yön kalibrasyon offset'i (altitude, derece). */
+    @Json(name = "altOff") val altOffset: Double = 0.0,
+    /** Aktif altitude yukarı limiti (derece). */
+    @Json(name = "altMax") val altMax: Double = 90.0,
 ) {
     companion object {
         val EMPTY = TelescopeStatus()

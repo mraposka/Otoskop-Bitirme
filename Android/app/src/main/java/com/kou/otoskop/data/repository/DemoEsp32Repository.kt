@@ -37,6 +37,9 @@ class DemoEsp32Repository : Esp32Repository {
     private var targetAlt = 35.0
     private var tracking = false
     private var locked = true
+    private var azOffset = 0.0
+    private var altOffset = 0.0
+    private var altMax = 90.0
 
     private val toleranceDeg = 1.5
     private val approachStepDeg = 1.2
@@ -71,6 +74,9 @@ class DemoEsp32Repository : Esp32Repository {
                 imuOk = true,
                 tracking = tracking,
                 targetLocked = locked,
+                azOffset = azOffset,
+                altOffset = altOffset,
+                altMax = altMax,
             ),
         )
     }
@@ -122,6 +128,20 @@ class DemoEsp32Repository : Esp32Repository {
         }
 
     override suspend fun calibrate(): Resource<Unit> = Resource.Success(Unit)
+
+    override suspend fun sendCalOffset(
+        azimuthOffset: Double,
+        altitudeOffset: Double,
+    ): Resource<Unit> = mutex.withLock {
+        azOffset = normalizeAzimuth(azOffset + azimuthOffset)
+        altOffset += altitudeOffset
+        Resource.Success(Unit)
+    }
+
+    override suspend fun setAltLimit(altMax: Double): Resource<Unit> = mutex.withLock {
+        this.altMax = altMax.coerceIn(1.0, 180.0)
+        Resource.Success(Unit)
+    }
 
     override suspend fun setTracking(enabled: Boolean): Resource<Unit> =
         mutex.withLock {

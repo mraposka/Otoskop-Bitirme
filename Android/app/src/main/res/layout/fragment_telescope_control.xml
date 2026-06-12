@@ -238,6 +238,31 @@
                     android:text="@string/action_verify" />
             </LinearLayout>
 
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/dirCalibrateBtn"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:text="@string/action_direction_calibrate" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/settingsBtn"
+                    style="?attr/materialButtonOutlinedStyle"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:text="@string/action_settings" />
+            </LinearLayout>
+
             <com.google.android.material.switchmaterial.SwitchMaterial
                 android:id="@+id/trackingSwitch"
                 android:layout_width="wrap_content"

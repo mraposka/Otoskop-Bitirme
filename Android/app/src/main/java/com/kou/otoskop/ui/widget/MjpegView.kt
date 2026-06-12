@@ -49,6 +49,9 @@ class MjpegView @JvmOverloads constructor(
      */
     @Volatile private var call: Call? = null
 
+    /** UI güncellemesi devam ederken gelen kareleri at (gecikme birikimini önler). */
+    @Volatile private var postingFrame = false
+
     var onError: ((Throwable) -> Unit)? = null
 
     /**
@@ -146,11 +149,16 @@ class MjpegView @JvmOverloads constructor(
                 } else {
                     if (frameLen < frame.size) frame[frameLen++] = b.toByte()
                     if (prev == 0xFF && b == 0xD9) {
-                        val bmp = BitmapFactory.decodeByteArray(frame, 0, frameLen)
+                        val opts = BitmapFactory.Options().apply {
+                            inPreferredConfig = Bitmap.Config.ARGB_8888
+                        }
+                        val bmp = BitmapFactory.decodeByteArray(frame, 0, frameLen, opts)
                         if (bmp != null) {
-                            // Önce kayıt dinleyicisi (kopyalar), sonra ekrana bas.
                             onFrame?.invoke(bmp)
-                            postBitmap(bmp)
+                            if (!postingFrame) {
+                                postingFrame = true
+                                postBitmap(bmp)
+                            }
                         }
                         inJpeg = false
                         frameLen = 0
@@ -163,6 +171,10 @@ class MjpegView @JvmOverloads constructor(
     }
 
     private suspend fun postBitmap(bmp: Bitmap) {
-        withContext(Dispatchers.Main) { setImageBitmap(bmp) }
+        try {
+            withContext(Dispatchers.Main) { setImageBitmap(bmp) }
+        } finally {
+            postingFrame = false
+        }
     }
 }

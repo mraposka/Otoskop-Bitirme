@@ -25,18 +25,21 @@ object AppConfig {
     /** Geliştirme aşamasında local backend; emulator'dan host'a 10.0.2.2. */
     const val DEFAULT_BACKEND_BASE_URL: String = "http://10.0.2.2:8000/"
 
-    /** Gözlemlenebilir objeler için ücretsiz üçüncü-parti astronomy API. */
+    /** Gözlemlenebilir objeler — keysiz yedek (sık 503). */
     const val ASTRO_BASE_URL: String = "https://api.visibleplanets.dev/"
+
+    /** Astronomy API — ücretsiz tier, Application ID + Secret gerekir. */
+    const val ASTRONOMY_BASE_URL: String = "https://api.astronomyapi.com/"
 
     /** Gemini multimodal API tabanı + en ucuz vizyon modeli. */
     const val GEMINI_BASE_URL: String = "https://generativelanguage.googleapis.com/"
     const val GEMINI_MODEL: String = "gemini-2.5-flash-lite"
 
-    const val ESP32_TIMEOUT_MS: Long = 5_000
+    const val ESP32_TIMEOUT_MS: Long = 8_000
     const val BACKEND_TIMEOUT_MS: Long = 30_000
 
     /** Telescope status polling sıklığı. */
-    const val STATUS_POLL_INTERVAL_MS: Long = 750
+    const val STATUS_POLL_INTERVAL_MS: Long = 1_000
 
     /** Demo modunda GPS yoksa kullanılan sabit konum (İstanbul yaklaşık). */
     const val DEMO_FALLBACK_LATITUDE: Double = 41.0082

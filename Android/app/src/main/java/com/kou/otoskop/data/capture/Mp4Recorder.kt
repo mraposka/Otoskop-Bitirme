@@ -3,6 +3,7 @@ package com.kou.otoskop.data.capture
 import android.graphics.Bitmap
 import android.media.MediaCodec
 import android.media.MediaCodecInfo
+import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.util.Log
@@ -11,13 +12,11 @@ import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * Gelen Bitmap karelerini gerçek zamanlı olarak H.264/MP4 dosyasına yazar
- * (tarayıcı ve mobil oynatıcı uyumlu). ESP MJPEG akışından çözülen kareler
- * [encodeFrame] ile beslenir; çözünürlük ilk kareye göre sabitlenir.
+ * Gelen Bitmap karelerini gerçek zamanlı olarak H.264/MP4 dosyasına yazar.
+ * ESP MJPEG akışından çözülen kareler [encodeFrame] ile beslenir.
  *
- * Tasarım: cihaz bağımsız olması için `COLOR_FormatYUV420Flexible` + Codec'in
- * `getInputImage()` plane API'si kullanılır (rowStride/pixelStride'a saygılı).
- * Tüm kodlama tek bir arka plan thread'inde yapılır.
+ * Cihaz uyumluluğu için YUV plane API yerine NV12/I420 byte buffer kullanılır
+ * (getInputImage birçok cihazda siyah kare üretir).
  */
 class Mp4Recorder(
     private val outFile: File,
@@ -37,6 +36,7 @@ class Mp4Recorder(
     private var muxerStarted = false
     private var width = 0
     private var height = 0
+    private var colorFormat = MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
     private val frameCount = AtomicInteger(0)
     @Volatile private var started = false
     @Volatile private var failed = false
@@ -45,19 +45,15 @@ class Mp4Recorder(
 
     val isRecording: Boolean get() = started && !failed
 
-    /** İlk kareyle çözünürlüğü sabitleyip kodlayıcıyı başlatır. */
     private fun ensureStarted(w: Int, h: Int) {
         if (started || failed) return
         try {
-            // H.264 genişlik/yükseklik çift olmalı
             width = w and 1.inv()
             height = h and 1.inv()
+            colorFormat = pickYuvColorFormat()
 
             val format = MediaFormat.createVideoFormat(MIME, width, height).apply {
-                setInteger(
-                    MediaFormat.KEY_COLOR_FORMAT,
-                    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Flexible,
-                )
+                setInteger(MediaFormat.KEY_COLOR_FORMAT, colorFormat)
                 setInteger(MediaFormat.KEY_BIT_RATE, bitRate)
                 setInteger(MediaFormat.KEY_FRAME_RATE, fps)
                 setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
@@ -69,6 +65,7 @@ class Mp4Recorder(
             muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
             startMs = System.currentTimeMillis()
             started = true
+            Log.d(TAG, "started ${width}x$height fmt=$colorFormat")
         } catch (t: Throwable) {
             Log.e(TAG, "start failed", t)
             failed = true
@@ -76,16 +73,20 @@ class Mp4Recorder(
         }
     }
 
-    /** Bir kareyi kodlamaya gönderir (kopyasını alır; çağıran bitmap'i serbest bırakabilir). */
     fun encodeFrame(bitmap: Bitmap) {
         if (failed) return
-        // Bitmap'i hemen kopyala (worker'a güvenli geçsin; UI aynı bitmap'i yeniden kullanır)
-        val copy = bitmap.copy(Bitmap.Config.ARGB_8888, false) ?: return
+        val copy = toSoftwareArgb(bitmap) ?: return
         val ok = runCatching {
             worker.execute {
-                if (failed) { copy.recycle(); return@execute }
+                if (failed) {
+                    copy.recycle()
+                    return@execute
+                }
                 ensureStarted(copy.width, copy.height)
-                if (!started) { copy.recycle(); return@execute }
+                if (!started) {
+                    copy.recycle()
+                    return@execute
+                }
                 try {
                     feed(copy)
                     drain(endOfStream = false)
@@ -97,22 +98,26 @@ class Mp4Recorder(
                 }
             }
         }.isSuccess
-        // worker kapandıysa (stop sonrası) kareyi at
         if (!ok) copy.recycle()
     }
 
     private fun feed(src: Bitmap) {
         val c = codec ?: return
         val index = c.dequeueInputBuffer(TIMEOUT_US)
-        if (index < 0) return // bu kareyi atla (kodlayıcı meşgul)
-        val image = c.getInputImage(index) ?: run {
-            c.queueInputBuffer(index, 0, 0, ptsUs(), 0)
-            return
+        if (index < 0) return
+        val input = c.getInputBuffer(index) ?: return
+
+        val frame = if (src.width == width && src.height == height) {
+            src
+        } else {
+            Bitmap.createScaledBitmap(src, width, height, true)
         }
-        // ARGB -> I420 (Y,U,V) plane'lerine yaz
-        fillYuv420(src, image)
-        val pts = ptsUs()
-        c.queueInputBuffer(index, 0, 0, pts, 0)
+        val yuv = bitmapToYuv(frame, width, height, colorFormat)
+        if (frame !== src) frame.recycle()
+
+        input.clear()
+        input.put(yuv)
+        c.queueInputBuffer(index, 0, yuv.size, ptsUs(), 0)
         frameCount.incrementAndGet()
     }
 
@@ -150,9 +155,6 @@ class Mp4Recorder(
         }
     }
 
-    /**
-     * Kaydı bitirir ve sonucu döndürür. result.ok=false ise dosya bozuk/boş.
-     */
     fun stop(): Result {
         val durationSec = if (startMs > 0) (System.currentTimeMillis() - startMs) / 1000.0 else 0.0
         val frames = frameCount.get()
@@ -198,48 +200,95 @@ class Mp4Recorder(
     data class Result(val ok: Boolean, val frames: Int, val durationSec: Double, val fps: Double)
 }
 
-/**
- * ARGB_8888 bitmap'i MediaCodec Image'ının YUV420 plane'lerine (BT.601)
- * rowStride/pixelStride'a saygılı şekilde yazar. Hem planar (I420) hem
- * semi-planar (NV12) düzenleri pixelStride üzerinden desteklenir.
- */
-private fun fillYuv420(src: Bitmap, image: android.media.Image) {
-    val w = image.width
-    val h = image.height
-    val argb = IntArray(w * h)
-    // Bitmap çözünürlüğü image ile aynı olmayabilir; güvenli tarafta kal
-    val bw = src.width.coerceAtMost(w)
-    val bh = src.height.coerceAtMost(h)
-    src.getPixels(argb, 0, w, 0, 0, bw, bh)
+private fun toSoftwareArgb(bitmap: Bitmap): Bitmap? {
+    val cfg = bitmap.config ?: Bitmap.Config.ARGB_8888
+    return if (cfg == Bitmap.Config.ARGB_8888 && bitmap.config != Bitmap.Config.HARDWARE) {
+        bitmap.copy(Bitmap.Config.ARGB_8888, false)
+    } else {
+        bitmap.copy(Bitmap.Config.ARGB_8888, false)
+    }
+}
 
-    val yPlane = image.planes[0]
-    val uPlane = image.planes[1]
-    val vPlane = image.planes[2]
-    val yBuf = yPlane.buffer
-    val uBuf = uPlane.buffer
-    val vBuf = vPlane.buffer
-    val yRowStride = yPlane.rowStride
-    val uRowStride = uPlane.rowStride
-    val vRowStride = vPlane.rowStride
-    val uPixStride = uPlane.pixelStride
-    val vPixStride = vPlane.pixelStride
-
-    for (y in 0 until h) {
-        for (x in 0 until w) {
-            val p = argb[y * w + x]
-            val r = (p shr 16) and 0xFF
-            val g = (p shr 8) and 0xFF
-            val b = p and 0xFF
-            val yy = ((66 * r + 129 * g + 25 * b + 128) shr 8) + 16
-            yBuf.put(y * yRowStride + x, yy.coerceIn(0, 255).toByte())
-            if (y % 2 == 0 && x % 2 == 0) {
-                val uu = ((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128
-                val vv = ((112 * r - 94 * g - 18 * b + 128) shr 8) + 128
-                val cx = x / 2
-                val cy = y / 2
-                uBuf.put(cy * uRowStride + cx * uPixStride, uu.coerceIn(0, 255).toByte())
-                vBuf.put(cy * vRowStride + cx * vPixStride, vv.coerceIn(0, 255).toByte())
+private fun pickYuvColorFormat(): Int {
+    val list = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+    for (info in list.codecInfos) {
+        if (!info.isEncoder) continue
+        for (type in info.supportedTypes) {
+            if (!type.equals(MediaFormat.MIMETYPE_VIDEO_AVC, ignoreCase = true)) continue
+            val caps = info.getCapabilitiesForType(type)
+            for (fmt in caps.colorFormats) {
+                if (fmt == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar) return fmt
+            }
+            for (fmt in caps.colorFormats) {
+                if (fmt == MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar) return fmt
             }
         }
     }
+    return MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar
+}
+
+private fun bitmapToYuv(
+    src: Bitmap,
+    width: Int,
+    height: Int,
+    colorFormat: Int,
+): ByteArray = when (colorFormat) {
+    MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar -> argbToI420(src, width, height)
+    else -> argbToNV12(src, width, height)
+}
+
+/** NV12: Y düzlemi + birleşik UV (U,V,U,V…). */
+private fun argbToNV12(src: Bitmap, width: Int, height: Int): ByteArray {
+    val argb = IntArray(width * height)
+    src.getPixels(argb, 0, width, 0, 0, width, height)
+    val frameSize = width * height
+    val yuv = ByteArray(frameSize + frameSize / 2)
+    var yIndex = 0
+    var uvIndex = frameSize
+    for (j in 0 until height) {
+        for (i in 0 until width) {
+            val p = argb[j * width + i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            val y = ((66 * r + 129 * g + 25 * b + 128) shr 8) + 16
+            yuv[yIndex++] = y.coerceIn(0, 255).toByte()
+            if (j % 2 == 0 && i % 2 == 0) {
+                val u = ((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128
+                val v = ((112 * r - 94 * g - 18 * b + 128) shr 8) + 128
+                yuv[uvIndex++] = u.coerceIn(0, 255).toByte()
+                yuv[uvIndex++] = v.coerceIn(0, 255).toByte()
+            }
+        }
+    }
+    return yuv
+}
+
+/** I420: Y + U + V ayrı düzlemler. */
+private fun argbToI420(src: Bitmap, width: Int, height: Int): ByteArray {
+    val argb = IntArray(width * height)
+    src.getPixels(argb, 0, width, 0, 0, width, height)
+    val ySize = width * height
+    val uvSize = ySize / 4
+    val yuv = ByteArray(ySize + uvSize * 2)
+    var yIndex = 0
+    var uIndex = ySize
+    var vIndex = ySize + uvSize
+    for (j in 0 until height) {
+        for (i in 0 until width) {
+            val p = argb[j * width + i]
+            val r = (p shr 16) and 0xFF
+            val g = (p shr 8) and 0xFF
+            val b = p and 0xFF
+            val y = ((66 * r + 129 * g + 25 * b + 128) shr 8) + 16
+            yuv[yIndex++] = y.coerceIn(0, 255).toByte()
+            if (j % 2 == 0 && i % 2 == 0) {
+                val u = ((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128
+                val v = ((112 * r - 94 * g - 18 * b + 128) shr 8) + 128
+                yuv[uIndex++] = u.coerceIn(0, 255).toByte()
+                yuv[vIndex++] = v.coerceIn(0, 255).toByte()
+            }
+        }
+    }
+    return yuv
 }

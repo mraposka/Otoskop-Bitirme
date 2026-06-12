@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import com.kou.otoskop.core.AppConfig
 import com.kou.otoskop.data.network.Esp32Endpoint
 import com.kou.otoskop.data.network.GeminiConfig
+import com.kou.otoskop.data.network.AstronomyConfig
 import com.kou.otoskop.data.capture.CaptureRepository
 import com.kou.otoskop.data.network.NetworkFactory
 import com.kou.otoskop.data.repository.BackendRepository
@@ -53,6 +54,10 @@ class OtoskopApp : Application() {
     lateinit var geminiConfig: GeminiConfig
         private set
 
+    /** Astronomy API kimlik bilgisi (gök cismi listesi yedek kaynağı). */
+    lateinit var astronomyConfig: AstronomyConfig
+        private set
+
     val isDemoMode: Boolean
         get() = prefs.getBoolean(PREF_DEMO_MODE, false)
 
@@ -70,6 +75,10 @@ class OtoskopApp : Application() {
             port = AppConfig.DEFAULT_ESP32_PORT,
         )
         geminiConfig = GeminiConfig(prefs.getString(PREF_GEMINI_KEY, "").orEmpty())
+        astronomyConfig = AstronomyConfig(
+            applicationId = prefs.getString(PREF_ASTRONOMY_APP_ID, "").orEmpty(),
+            applicationSecret = prefs.getString(PREF_ASTRONOMY_APP_SECRET, "").orEmpty(),
+        )
 
         httpEsp32Repo = HttpEsp32Repository(
             api = NetworkFactory.createEsp32(esp32Endpoint),
@@ -77,6 +86,8 @@ class OtoskopApp : Application() {
         )
         directBackendRepo = DirectBackendRepository(
             astro = NetworkFactory.createAstro(),
+            astronomy = NetworkFactory.createAstronomy(astronomyConfig),
+            astronomyConfigured = { astronomyConfig.isConfigured },
             gemini = NetworkFactory.createGemini(),
             model = AppConfig.GEMINI_MODEL,
             apiKeyProvider = { geminiConfig.apiKey },
@@ -108,6 +119,17 @@ class OtoskopApp : Application() {
         prefs.edit().putString(PREF_GEMINI_KEY, trimmed).apply()
     }
 
+    fun setAstronomyCredentials(applicationId: String, applicationSecret: String) {
+        val id = applicationId.trim()
+        val secret = applicationSecret.trim()
+        astronomyConfig.applicationId = id
+        astronomyConfig.applicationSecret = secret
+        prefs.edit()
+            .putString(PREF_ASTRONOMY_APP_ID, id)
+            .putString(PREF_ASTRONOMY_APP_SECRET, secret)
+            .apply()
+    }
+
     /** ESP32 adresini (IP veya otoskop.local) kalıcı kaydeder. */
     fun setEsp32Host(host: String) {
         val h = host.trim()
@@ -118,6 +140,8 @@ class OtoskopApp : Application() {
         private const val PREFS_NAME = "otoskop_prefs"
         private const val PREF_DEMO_MODE = "demo_mode"
         private const val PREF_GEMINI_KEY = "gemini_api_key"
+        private const val PREF_ASTRONOMY_APP_ID = "astronomy_app_id"
+        private const val PREF_ASTRONOMY_APP_SECRET = "astronomy_app_secret"
         private const val PREF_ESP32_HOST = "esp32_host"
     }
 }

@@ -16,7 +16,9 @@
  *   POST /target      -> {"name":..,"azimuth":..,"altitude":..}
  *   POST /move        -> {"direction":"left|right|up|down","step":"small|medium|large"}
  *   POST /correction  -> {"azimuthCorrection":..,"altitudeCorrection":..}
- *   POST /calibrate
+ *   POST /calibrate                                   gyro/mag kalibrasyonu
+ *   POST /caloffset   -> {"azimuthOffset":..,"altitudeOffset":..}  yon kalibrasyonu
+ *   POST /limits      -> {"altMax":..}                altitude yukari limiti
  *   GET  /ota/check   -> bulut OTA'yi hemen tetikler (yeni surum varsa gunceller)
  *
  * Mega link kablolama:
@@ -62,6 +64,8 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <HTTPUpdate.h>
+#include <esp_ota_ops.h>
+#include <esp_partition.h>
 #include "soc/soc.h"             // brownout dedektorunu kapatmak icin
 #include "soc/rtc_cntl_reg.h"
 #include "lwip/sockets.h"        // SO_SNDTIMEO: takilan stream yazimini bosa cikar
@@ -126,11 +130,11 @@ WiFiMulti wifiMulti;
 
 // ----- Bulut OTA (HTTP pull) ------------------------------------------------
 // Her yeni firmware'de bu sayiyi VE version.json icindeki "version"i artir.
-#define FW_VERSION 11
+#define FW_VERSION 16
 
 // version.json'in ham (raw) adresi. Ornek GitHub raw:
 //   https://raw.githubusercontent.com/KULLANICI/REPO/main/ota/version.json
-const char* OTA_VERSION_URL = "https://raw.githubusercontent.com/mraposka/Otoskop/refs/heads/main/ESP32_Pure_Firmware/ota/version.json";
+const char* OTA_VERSION_URL = "https://raw.githubusercontent.com/mraposka/Otoskop-Bitirme/refs/heads/main/Firmware/ESP32_Pure_Firmware/ota/version.json";
 
 // Bulut OTA kontrol araligi (ms). 0 = otomatik kontrol kapali (sadece /ota/check).
 const unsigned long OTA_CHECK_INTERVAL = 5UL * 60UL * 1000UL;  // 5 dk
@@ -297,7 +301,7 @@ void handleStatus() {
   doc["servoAz"] = tele.sAz;
   doc["servoAlt"] = tele.sAlt;
   doc["gpsFix"] = tele.gps;
-  doc["imuOk"] = tele.imu && (millis() - tele.lastUpdate < 2000);
+  doc["imuOk"] = tele.imu && (millis() - tele.lastUpdate < 5000);
   doc["tracking"] = tele.trk;
   doc["targetLocked"] = tele.lock;
   // Mega link debug alanlari (uygulamadaki konsol bunlari gosterir):
@@ -367,6 +371,33 @@ void handleCalibrate() {
   server.send(200, "application/json", "{\"ok\":true}");
 }
 
+// Yon kalibrasyonu: telefon (gercek) ile MPU farkinin artimsal eklenmesi.
+//   POST /caloffset  {"azimuthOffset":12.0,"altitudeOffset":-3.0}
+void handleCalOffset() {
+  StaticJsonDocument<256> in;
+  if (deserializeJson(in, server.arg("plain"))) { server.send(400, "text/plain", "bad json"); return; }
+  StaticJsonDocument<128> out;
+  out["cmd"] = "calOffset";
+  out["daz"] = in["azimuthOffset"] | 0.0;
+  out["dalt"] = in["altitudeOffset"] | 0.0;
+  sendToMega(out);
+  sendCors();
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
+// Altitude yukari limiti (kullanici ayar sayfasindan belirler).
+//   POST /limits  {"altMax":60.0}
+void handleLimits() {
+  StaticJsonDocument<256> in;
+  if (deserializeJson(in, server.arg("plain"))) { server.send(400, "text/plain", "bad json"); return; }
+  StaticJsonDocument<128> out;
+  out["cmd"] = "limits";
+  out["altMax"] = in["altMax"] | 90.0;
+  sendToMega(out);
+  sendCors();
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+
 void handleCamera() {
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) { server.send(500, "text/plain", "capture failed"); return; }
@@ -422,7 +453,7 @@ void handleStream() {
     pumpMega();             // stream sirasinda telemetri guncel kalsin
     ArduinoOTA.handle();    // stream acikken bile kablosuz yukleme yakalansin
     if (!client.connected()) break;
-    delay(40);              // ~25 fps tavani
+    delay(66);              // ~15 fps — hotspot'ta daha akıcı, ESP/telefon yükü düşük
   }
 }
 
@@ -466,6 +497,51 @@ void setupOTA() {
 }
 
 // --------------------------- Bulut OTA (HTTP pull) -------------------------
+// OTA on-kontrol + teşhis (Serial Monitor'da gorulur).
+static void logOtaPartitions() {
+  const esp_partition_t* run = esp_ota_get_running_partition();
+  const esp_partition_t* upd = esp_ota_get_next_update_partition(NULL);
+  if (run) {
+    Serial.printf("[OTA] calisan: %s boyut=%u B\n", run->label, run->size);
+  } else {
+    Serial.println(F("[OTA] calisan partition okunamadi"));
+  }
+  if (upd) {
+    Serial.printf("[OTA] hedef slot: %s boyut=%u B\n", upd->label, upd->size);
+  } else {
+    Serial.println(F("[OTA] HATA: guncelleme partition YOK -> Partition Scheme OTA degil!"));
+  }
+}
+
+/** OTA slot var mi ve (biliniyorsa) dosya sigiyor mu? */
+static bool otaPreflight(int contentLength, String& msg) {
+  const esp_partition_t* upd = esp_ota_get_next_update_partition(NULL);
+  if (!upd) {
+    msg = "OTA partition yok. USB ile yukle: Partition Scheme = Minimal SPIFFS (1.9MB APP with OTA)";
+    return false;
+  }
+  if (contentLength > 0 && (size_t)contentLength > upd->size) {
+    msg = "firmware.bin cok buyuk (" + String(contentLength) +
+          " B), OTA slot=" + String(upd->size) + " B. Daha kucuk derleme veya OTA semasi sec";
+    return false;
+  }
+  return true;
+}
+
+static String otaFailureHint(const String& err) {
+  if (err.indexOf("Activate") >= 0 || err.indexOf("activate") >= 0) {
+    return err +
+      " | Muhtemel neden: firmware.bin baska Partition Scheme ile derlenmis "
+      "veya cihaz ilk kez 'Huge APP (No OTA)' ile yuklenmis. "
+      "Cozum: Arduino IDE > AI Thinker ESP32-CAM > Minimal SPIFFS (1.9MB APP with OTA) > "
+      "PSRAM Enabled ile USB'den bir kez yukle; OTA .bin'i de AYNI ayarlarla Export et.";
+  }
+  if (err.indexOf("Not Enough Space") >= 0 || err.indexOf("no space") >= 0) {
+    return err + " | firmware.bin OTA bolgesine sigmiyor.";
+  }
+  return err;
+}
+
 // version.json'i okur; yeni surum varsa firmware.bin'i indirip kendini gunceller.
 // Donus: yeni surum bulunup guncelleme baslatildiysa true (cihaz reboot olur),
 // aksi halde false. lastErr doldurulur (durum mesaji).
@@ -501,6 +577,28 @@ bool runCloudUpdate(String& msg) {
 
   // 2) Yeni surum var -> kamerayi kapat, firmware.bin'i cek ve flashla
   Serial.printf("Bulut OTA: v%d -> v%d, indiriliyor...\n", FW_VERSION, latest);
+  logOtaPartitions();
+
+  // HEAD ile dosya boyutunu ogren (GitHub raw destekler); OTA slot sigiyor mu?
+  int binSize = -1;
+  {
+    WiFiClientSecure headClient;
+    headClient.setInsecure();
+    HTTPClient headHttp;
+    if (headHttp.begin(headClient, binUrl)) {
+      int headCode = headHttp.sendRequest("HEAD");
+      if (headCode == HTTP_CODE_OK || headCode == HTTP_CODE_MOVED_PERMANENTLY) {
+        binSize = headHttp.getSize();
+        Serial.printf("[OTA] firmware.bin boyut=%d B\n", binSize);
+      }
+      headHttp.end();
+    }
+  }
+  if (!otaPreflight(binSize, msg)) {
+    Serial.println(msg);
+    return false;
+  }
+
   esp_camera_deinit();               // RAM/flash'i bosalt (TLS + Update icin)
 
   // Indirme suresince flash LED'i yanip sondur (gorsel gosterge). Progress
@@ -532,7 +630,7 @@ bool runCloudUpdate(String& msg) {
       return false;
     case HTTP_UPDATE_FAILED:
     default:
-      msg = "OTA HATA: " + httpUpdate.getLastErrorString();
+      msg = otaFailureHint("OTA HATA: " + httpUpdate.getLastErrorString());
       Serial.println(msg);
       // Guncelleme basarisiz; kamerayi geri ac ki cihaz calismaya devam etsin
       initCamera();
@@ -605,6 +703,8 @@ void setup() {
   server.on("/move", HTTP_POST, handleMove);
   server.on("/correction", HTTP_POST, handleCorrection);
   server.on("/calibrate", HTTP_POST, handleCalibrate);
+  server.on("/caloffset", HTTP_POST, handleCalOffset);
+  server.on("/limits", HTTP_POST, handleLimits);
   server.onNotFound(handleNotFound);
   server.begin();
 

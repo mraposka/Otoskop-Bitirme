@@ -343,6 +343,7 @@ günceller.
 | Pusula sapması | `calibrate` çalıştırın; `MAG_DECLINATION_DEG`'i kendi konumunuza göre ayarlayın |
 | Stream açıkken API donuyor | Yeni firmware'de yayın ayrı portta (81); stream döngüsü içinde API pompalanır. Eski firmware'i güncelleyin |
 | Bulut OTA sonsuz döngü | `FW_VERSION` artırıldı ama yeniden derlenmedi; `release.ps1` bu durumda uyarır |
+| OTA: **Could Not Activate The Firmware** | İndirme tamam ama doğrulama/aktivasyon başarısız. **En sık neden:** cihaz veya `firmware.bin` **farklı Partition Scheme** ile derlenmiş (ör. cihazda *Huge APP No OTA*, OTA bin *Minimal SPIFFS*). **Çözüm:** Arduino IDE → AI Thinker ESP32-CAM → **Minimal SPIFFS (1.9MB APP with OTA)** + PSRAM Enabled ile **USB'den bir kez** yükle; GitHub'a koyacağın `.bin`'i de **aynı ayarlarla** Export Compiled Binary ile üret |
 
 ---
 

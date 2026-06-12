@@ -8,7 +8,11 @@
     <string name="action_auto_discover">ESP\'yi otomatik bul</string>
     <string name="status_discovering">Aranıyor…</string>
     <string name="hint_gemini_key">Gemini API anahtarı (doğrulama için)</string>
-    <string name="action_save_key">Anahtarı kaydet</string>
+    <string name="hint_astronomy_app_id">Astronomy API — Application ID</string>
+    <string name="hint_astronomy_app_secret">Astronomy API — Application Secret</string>
+    <string name="action_save_key">Gemini anahtarını kaydet</string>
+    <string name="action_save_astronomy">Astronomy kimlik bilgisini kaydet</string>
+    <string name="astro_saved">Astronomy kimlik bilgisi kaydedildi</string>
     <string name="key_saved">Gemini anahtarı kaydedildi</string>
     <string name="action_test_stream">Kamera stream test</string>
     <string name="action_hide_stream">Stream gizle</string>
@@ -50,6 +54,24 @@
     <!-- Kontrol ekranı -->
     <string name="title_control">Teleskop Kontrol</string>
     <string name="action_calibrate">Kalibre et</string>
+    <string name="action_direction_calibrate">Yön kalibre</string>
+    <string name="action_settings">Ayarlar</string>
+
+    <!-- Yön kalibrasyonu (telefonla MPU hizalama) -->
+    <string name="dir_calib_title">Yön Kalibrasyonu</string>
+    <string name="dir_calib_step_az">1/2 — Telefonun arkasını teleskopun ÖN baktığı yöne (aynı azimut) doğrult, sonra yakala.\n\nTelefon: %1$.0f°  •  Teleskop: %2$.0f°</string>
+    <string name="dir_calib_step_alt">2/2 — Telefonu teleskopun eğimiyle (yukarı/aşağı açısı) aynı tut, sonra yakala.\n\nTelefon: %1$.0f°  •  Teleskop: %2$.0f°</string>
+    <string name="dir_calib_capture">Yakala</string>
+    <string name="dir_calib_done">Yön kalibrasyonu kaydedildi (Az %1$+.0f°, Alt %2$+.0f°)</string>
+    <string name="dir_calib_no_status">Teleskop telemetrisi yok; önce bağlan.</string>
+
+    <!-- Ayarlar (altitude limiti) -->
+    <string name="settings_title">Ayarlar</string>
+    <string name="settings_alt_limit_label">Altitude üst limiti: %1$.0f°</string>
+    <string name="settings_alt_limit_hint">Teleskop bu açının üstüne çıkmaz (yukarı limit).</string>
+    <string name="settings_save">Kaydet</string>
+    <string name="settings_saved">Ayar kaydedildi</string>
+    <string name="action_cancel">İptal</string>
     <string name="label_current_azalt">Mevcut Az / Alt</string>
     <string name="label_target_azalt">Hedef Az / Alt</string>
     <string name="label_servo_angles">Servo açıları (az / alt)</string>

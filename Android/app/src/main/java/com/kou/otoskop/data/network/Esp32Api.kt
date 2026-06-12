@@ -39,6 +39,14 @@ interface Esp32Api {
     @POST("/calibrate")
     suspend fun postCalibrate(): Response<Unit>
 
+    /** Yön kalibrasyonu: telefon (gerçek) ile MPU farkının artımsal eklenmesi. */
+    @POST("/caloffset")
+    suspend fun postCalOffset(@Body body: CalOffsetBody): Response<Unit>
+
+    /** Altitude yukarı limiti (kullanıcı ayar sayfasından belirler). */
+    @POST("/limits")
+    suspend fun postLimits(@Body body: LimitsBody): Response<Unit>
+
     @POST("/target")
     suspend fun postTracking(@Body body: TrackingBody): Response<Unit>
 }
@@ -47,3 +55,5 @@ data class TargetBody(val name: String, val azimuth: Double, val altitude: Doubl
 data class MoveBody(val direction: String, val step: String)
 data class CorrectionBody(val azimuthCorrection: Double, val altitudeCorrection: Double)
 data class TrackingBody(val tracking: Boolean)
+data class CalOffsetBody(val azimuthOffset: Double, val altitudeOffset: Double)
+data class LimitsBody(val altMax: Double)

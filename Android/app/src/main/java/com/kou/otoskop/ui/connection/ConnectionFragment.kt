@@ -49,11 +49,23 @@ class ConnectionFragment : Fragment(R.layout.fragment_connection) {
 
         binding.ipInput.setText(viewModel.state.value.ip)
         binding.keyInput.setText(app.geminiApiKey)
+        binding.astroIdInput.setText(app.astronomyConfig.applicationId)
+        binding.astroSecretInput.setText(app.astronomyConfig.applicationSecret)
 
         binding.saveKeyBtn.setOnClickListener {
             app.setGeminiApiKey(binding.keyInput.text?.toString().orEmpty())
             android.widget.Toast.makeText(
                 requireContext(), R.string.key_saved, android.widget.Toast.LENGTH_SHORT,
+            ).show()
+        }
+
+        binding.saveAstroBtn.setOnClickListener {
+            app.setAstronomyCredentials(
+                binding.astroIdInput.text?.toString().orEmpty(),
+                binding.astroSecretInput.text?.toString().orEmpty(),
+            )
+            android.widget.Toast.makeText(
+                requireContext(), R.string.astro_saved, android.widget.Toast.LENGTH_SHORT,
             ).show()
         }
 
