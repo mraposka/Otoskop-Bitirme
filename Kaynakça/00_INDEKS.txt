@@ -1,0 +1,152 @@
+KAYNAKCA DOSYALARI - INDEKS
+============================================================
+
+Makaleler PDF olarak; kutuphane/dokumantasyon ve erisilemeyen
+iki makale (.url) tarayicida acilan kisayol olarak kaydedilmistir.
+
+[1] Su et al. (2023), Remote Sensing 15(12), 3156
+     dosya : 01_Su_2023_SpaceTargetDetection.pdf
+     kaynak: MDPI (Wayback)
+
+[2] Zhou et al. (2025), Aerospace 12(7), 568
+     dosya : 02_Zhou_2025_SpaceObject_YOLO11.pdf
+     kaynak: MDPI (Wayback)
+
+[3] Schanche et al. (2019), MNRAS 483(4)
+     dosya : 03_Schanche_2019_ML_ExoplanetTransit.pdf
+     kaynak: OUP / HAL acik erisim
+
+[4] Maulana et al. (2016), J. Phys. Conf. Ser. 771, 012025
+     dosya : 04_Maulana_2016_RaspberryPi_Streaming.url
+     kaynak: IOP acik erisim (yalniz tarayicidan PDF)
+
+[5] Vida et al. (2018), WGN 46(2)
+     dosya : 05_Vida_2018_RaspberryPi_MeteorCamera.pdf
+     kaynak: Global Meteor Network
+
+[6] Gutierrez et al. (2020), IEEE Access 8
+     dosya : 06_Gutierrez_2020_SOST_StarTracker.pdf
+     kaynak: U. de Chile deposu
+
+[7] Calvi et al. (2021), AEC-21
+     dosya : 07_Calvi_2021_ML_SpaceObjectTracking_thesis.pdf
+     kaynak: POLIMI acik tez surumu (ayni calisma; konferans bildirisi erisime kapali)
+
+[8] Baranova et al. (2021), Devices and Methods of Measurements 12(4)
+     dosya : 08_Baranova_2021_StreamingSpaceObjects.pdf
+     kaynak: CyberLeninka
+
+[9] Husser et al. (2022), Frontiers Astron. Space Sci. 9
+     dosya : 09_Husser_2022_pyobs.pdf
+     kaynak: Frontiers (altin OA)
+
+[10] De Vittori et al. (2022), Astrodynamics 6(2)
+     dosya : 10_DeVittori_2022_TrackletExtraction.pdf
+     kaynak: Springer
+
+[11] Tsaprailis et al. (2024), AIAA SciTech 2024
+     dosya : 11_Tsaprailis_2024_RSO_ML_Survey.url
+     kaynak: AIAA (ucretli)
+
+[12] Murawski (2018), EPSC2018-66
+     dosya : 12_Murawski_2018_CMOS_ExoplanetPhotometry.pdf
+     kaynak: Copernicus EPSC ozeti
+
+[13] Littlefield (2010), JAAVSO 38
+     dosya : 13_Littlefield_2010_DSLR_ExoplanetTransits.pdf
+     kaynak: AAVSO
+
+[14] Felt & Fletcher (2024), WACV
+     dosya : 14_Felt_2024_SeeingStars_Astrometry.pdf
+     kaynak: CVF acik erisim
+
+[15] Jia et al. (2020), arXiv:2011.10407
+     dosya : 15_Jia_2020_SmartObservation_WFSAT.pdf
+     kaynak: arXiv
+
+[16] Jiang et al. (2023), Electronics 12(23), 4820
+     dosya : 16_Jiang_2023_FaintSmall_SpaceObject.pdf
+     kaynak: MDPI (Wayback)
+
+[17] Guyon et al. (2014), SPIE 9145
+     dosya : 17_Guyon_2014_PANOPTES.pdf
+     kaynak: Subaru Telescope (yazar kopyasi)
+
+[18] Gracia Temich et al. (2005), Rev. Mex. Fis. 51(1)
+     dosya : 18_Gracia_2005_NewtonMirrorApodization.pdf
+     kaynak: SciELO Mexico
+
+[19] Seronik (2020), Collimation Guide
+     dosya : 19_Seronik_Collimation_Guide.url
+     kaynak: garyseronik.com
+
+[20] Sky & Telescope, Newtonian Alignment
+     dosya : 20_SkyTelescope_NewtonianAlignment.url
+     kaynak: skyandtelescope.org
+
+[21] Adafruit PCA9685 Library
+     dosya : 21_Adafruit_PCA9685_Library.url
+     kaynak: docs.circuitpython.org
+
+[22] AWS S3 Presigned URLs
+     dosya : 22_AWS_S3_PresignedURLs.url
+     kaynak: docs.aws.amazon.com
+
+[23] AstronomyAPI Bodies
+     dosya : 23_AstronomyAPI_Bodies.url
+     kaynak: docs.astronomyapi.com
+
+[24] Astropy Documentation
+     dosya : 24_Astropy_Documentation.url
+     kaynak: docs.astropy.org
+
+[25] Celery Documentation
+     dosya : 25_Celery_Documentation.url
+     kaynak: docs.celeryq.dev
+
+[26] FastAPI Documentation
+     dosya : 26_FastAPI_Documentation.url
+     kaynak: fastapi.tiangolo.com
+
+[27] pySerial Documentation
+     dosya : 27_pySerial_Documentation.url
+     kaynak: pyserial.readthedocs.io
+
+[28] ONNX Runtime Documentation
+     dosya : 28_ONNXRuntime_Documentation.url
+     kaynak: onnxruntime.ai
+
+[29] NumPy Documentation
+     dosya : 29_NumPy_Documentation.url
+     kaynak: numpy.org
+
+[30] OpenCV Documentation
+     dosya : 30_OpenCV_Documentation.url
+     kaynak: docs.opencv.org
+
+[31] Photutils Documentation
+     dosya : 31_Photutils_Documentation.url
+     kaynak: photutils.readthedocs.io
+
+[32] Picamera2 Documentation
+     dosya : 32_Picamera2_Documentation.url
+     kaynak: Raspberry Pi (PDF kilavuz linki)
+
+[33] libcamera / rpicam-apps
+     dosya : 33_libcamera_rpicam_apps.url
+     kaynak: raspberrypi.com
+
+[34] Skyfield Documentation
+     dosya : 34_Skyfield_Documentation.url
+     kaynak: rhodesmill.org
+
+[35] TensorFlow Documentation
+     dosya : 35_TensorFlow_Documentation.url
+     kaynak: tensorflow.org
+
+[36] pynmea2 (GitHub)
+     dosya : 36_pynmea2_GitHub.url
+     kaynak: github.com/Knio/pynmea2
+
+------------------------------------------------------------
+Toplam: 36 kaynak  (16 PDF, 20 link)
