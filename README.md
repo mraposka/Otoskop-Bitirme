@@ -353,4 +353,4 @@ Bu, eğitim amaçlı bir bitirme projesidir. Wi-Fi şifreleri, OTA şifresi ve
 TLS ayarları (sertifika doğrulaması kapalı) hobi kullanımı içindir; üretim
 ortamı için sertleştirilmelidir.
 
-Depo: [github.com/mraposka/Otoskop](https://github.com/mraposka/Otoskop)
+Tanıtım: [Video](https://www.youtube.com/watch?v=3B4UuJV4B6s)
